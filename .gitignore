@@ -1,0 +1,10 @@
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Packaged app (built by Scripts/package_app.sh; bundles the GPL-3 Mole CLI)
+dist/
+
+# macOS
+.DS_Store
