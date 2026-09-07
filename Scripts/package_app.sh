@@ -13,6 +13,15 @@ CONTENTS="$APP_DIR/Contents"
 MACOS="$CONTENTS/MacOS"
 RES="$CONTENTS/Resources"
 
+# The icon is drawn in code (Scripts/make_icon.swift), so it is generated here
+# rather than committed as a binary. Regenerate by deleting Assets/AppIcon.icns.
+ICON_SRC="$ROOT/Assets/AppIcon.icns"
+if [[ ! -f "$ICON_SRC" ]]; then
+  echo "→ Generating app icon…"
+  swift "$ROOT/Scripts/make_icon.swift" "$ROOT/Assets"
+  iconutil -c icns "$ROOT/Assets/AppIcon.iconset" -o "$ICON_SRC"
+fi
+
 echo "→ Building release binary…"
 swift build -c release
 
@@ -64,6 +73,8 @@ else
   echo "   no workspace CLI at $REPO_ROOT/mole — the app will use an installed mole"
 fi
 
+cp "$ICON_SRC" "$RES/AppIcon.icns"
+
 cat > "$CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -79,6 +90,8 @@ cat > "$CONTENTS/Info.plist" <<PLIST
   <string>6.0</string>
   <key>CFBundleName</key>
   <string>${APP_NAME}</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

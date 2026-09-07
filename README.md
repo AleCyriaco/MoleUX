@@ -1,5 +1,7 @@
 # MoleUX
 
+<img src="Assets/icon-preview.png" width="128" alt="MoleUX icon">
+
 Native **SwiftUI** front-end for [Mole](https://github.com/tw93/mole) — deep clean
 and system maintenance for macOS.
 
@@ -171,6 +173,22 @@ Sources/MoleGUI/
     InstallerScanner.swift
     AdminAccess.swift
   Views/
+```
+
+## Icon
+
+Drawn in code — `Scripts/make_icon.swift` renders every size with CoreGraphics
+and `Scripts/package_app.sh` turns it into `AppIcon.icns` on demand, so no binary
+art is committed. Change a constant, delete `Assets/AppIcon.icns`, repackage.
+
+The art is a full-bleed opaque square on purpose. macOS 26 reshapes app icons
+itself, and art carrying its own rounded plate gets inset onto a light
+placeholder plate — a visible double frame. Filling the canvas lets the system
+supply the mask, rim light and shadow. On macOS 14–15, which do no reshaping,
+the icon draws with square corners.
+
+```bash
+swift Scripts/make_icon.swift Assets      # regenerate the PNG set only
 ```
 
 ## License
