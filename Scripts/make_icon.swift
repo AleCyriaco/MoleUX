@@ -3,13 +3,10 @@
 // Drawn in code rather than shipped as binary art so the icon stays reviewable
 // and reproducible: tweak a number here, re-run, get a new .icns.
 //
-//   swift Scripts/make_icon.swift
+//   swift Scripts/make_icon.swift Assets
 //
-// Concept: a spade sunk into layered soil. "Dig into your disk" is the product
-// metaphor, and a spade is its universal symbol — it stays a clean silhouette at
-// 16pt, where the burrow shapes I tried first turned into an eye, a tadpole and
-// a slingshot in turn. Concentric forms read as eyes; tapered ones read as
-// organisms. A tool reads as a tool.
+// Concept: a burrow seen head-on. Concentric bands recede along a diagonal and
+// darken inward, so the eye reads depth — a mole's tunnel.
 
 import CoreGraphics
 import Foundation
@@ -19,6 +16,7 @@ import UniformTypeIdentifiers
 // MARK: - Design constants (1024pt design space)
 
 let canvas: CGFloat = 1024
+
 /// The art is a full-bleed opaque square, and the system rounds it.
 ///
 /// macOS 26 reshapes every app icon. Art that draws its own rounded plate is
@@ -35,6 +33,11 @@ let canvas: CGFloat = 1024
 let plateInset: CGFloat = 0
 let plateRadius = canvas / 2
 
+/// The bands were proportioned against Apple's 824pt inset plate. At full bleed
+/// the visible area is the whole canvas, so the art grows by the same ratio to
+/// keep its weight.
+let artScale: CGFloat = 1024 / 824
+
 struct RGBA {
     let r, g, b, a: CGFloat
     init(_ hex: UInt32, _ a: CGFloat = 1) {
@@ -44,30 +47,28 @@ struct RGBA {
         self.a = a
     }
     var components: [CGFloat] { [r, g, b, a] }
+    var cgColor: CGColor { CGColor(red: r, green: g, blue: b, alpha: a) }
 }
 
-/// Soil in section: sunlit topsoil at the surface, cold deep earth at the bottom.
-let soilTop = RGBA(0x5E3C21)
-let soilBottom = RGBA(0x120A05)
+/// Soil, lit from above: warm espresso plate, amber tunnel mouth.
+let plateTop = RGBA(0x3A2C20)
+let plateBottom = RGBA(0x140D08)
 
-/// Strata seams, as fractions of the plate height from its bottom, with weight.
-/// Uneven spacing and low contrast: regular hard lines read as planking, not soil.
-let strata: [(fraction: CGFloat, thickness: CGFloat, alpha: CGFloat)] = [
-    (0.235, 13, 0.16),
-    (0.615, 8, 0.11),
+/// Outermost first. Each band is painted over the previous one, so the tunnel
+/// darkens inward the way a real burrow does.
+let tunnelBands: [(radius: CGFloat, color: RGBA)] = [
+    (300, RGBA(0xF5A83F)),
+    (236, RGBA(0xD1761D)),
+    (176, RGBA(0x8E4715)),
+    (122, RGBA(0x4C240D)),
+    (74,  RGBA(0x1C0D06)),
 ]
 
-/// The spade, two-tone: a bright blade carries the silhouette, a warmer shaft
-/// keeps it from reading as one flat cut-out.
-let bladeLight = RGBA(0xFFF0D2)
-let bladeWarm = RGBA(0xE9A63F)
-let shaftLight = RGBA(0xD98F33)
-let shaftWarm = RGBA(0xA96420)
-/// Tilted a little so it reads as sunk into the ground, not diagrammed.
-let spadeTilt: CGFloat = -11 * .pi / 180
-/// The spade was drawn against Apple's 824pt inset plate; at full bleed it has
-/// to grow by the same ratio to keep its weight on the plate.
-let spadeScale: CGFloat = 1024 / 824
+/// Each band steps this far toward the upper right, bending the tunnel.
+let bandDrift = CGSize(width: 17, height: 15)
+
+/// Light catching the lower-left lip of the tunnel mouth.
+let rimLight = RGBA(0xFFD9A0, 0.5)
 
 // MARK: - Geometry
 
@@ -91,70 +92,6 @@ func gradient(_ from: RGBA, _ to: RGBA) -> CGGradient {
 
 // MARK: - Drawing
 
-/// The spade as three separate shapes. Kept separate on purpose: merged into one
-/// CGPath, subpaths wound in opposite directions punch holes in each other where
-/// they overlap under the nonzero fill rule.
-func spadeParts() -> (blade: CGPath, socket: CGPath, shaft: CGPath) {
-    let blade = CGMutablePath()
-    let halfWidth: CGFloat = 178
-    let shoulderY: CGFloat = 96
-    let corner: CGFloat = 26
-
-    // Tip up the right flank, square across the shoulders, back down the left.
-    // A flat shoulder with rounded corners is what makes this a spade; the
-    // dipped shoulder line I tried first pinched into barbs at both ends.
-    blade.move(to: CGPoint(x: 0, y: -292))
-    blade.addCurve(
-        to: CGPoint(x: 172, y: -46),
-        control1: CGPoint(x: 88, y: -264),
-        control2: CGPoint(x: 150, y: -164)
-    )
-    blade.addLine(to: CGPoint(x: halfWidth, y: shoulderY - corner))
-    blade.addArc(
-        tangent1End: CGPoint(x: halfWidth, y: shoulderY),
-        tangent2End: CGPoint(x: halfWidth - corner, y: shoulderY),
-        radius: corner
-    )
-    blade.addLine(to: CGPoint(x: -halfWidth + corner, y: shoulderY))
-    blade.addArc(
-        tangent1End: CGPoint(x: -halfWidth, y: shoulderY),
-        tangent2End: CGPoint(x: -halfWidth, y: shoulderY - corner),
-        radius: corner
-    )
-    blade.addLine(to: CGPoint(x: -172, y: -46))
-    blade.addCurve(
-        to: CGPoint(x: 0, y: -292),
-        control1: CGPoint(x: -150, y: -164),
-        control2: CGPoint(x: -88, y: -264)
-    )
-    blade.closeSubpath()
-
-    // Socket: the collar joining blade to shaft, overlapping both so they merge.
-    let socket = CGMutablePath()
-    socket.move(to: CGPoint(x: -76, y: 82))
-    socket.addLine(to: CGPoint(x: 76, y: 82))
-    socket.addLine(to: CGPoint(x: 50, y: 244))
-    socket.addLine(to: CGPoint(x: -50, y: 244))
-    socket.closeSubpath()
-
-    let shaft = CGPath(
-        roundedRect: CGRect(x: -45, y: 226, width: 90, height: 286),
-        cornerWidth: 30, cornerHeight: 30, transform: nil
-    )
-
-    return (blade, socket, shaft)
-}
-
-/// The spade positioned and tilted on the plate.
-func placedSpade(scale: CGFloat) -> [CGPath] {
-    var transform = CGAffineTransform(scaleX: scale, y: scale)
-        .translatedBy(x: 512, y: 470)
-        .rotated(by: spadeTilt)
-        .scaledBy(x: spadeScale, y: spadeScale)
-    let parts = spadeParts()
-    return [parts.blade, parts.socket, parts.shaft].compactMap { $0.copy(using: &transform) }
-}
-
 func drawIcon(into ctx: CGContext, size: Int) {
     let dimension = CGFloat(size)
 
@@ -164,80 +101,55 @@ func drawIcon(into ctx: CGContext, size: Int) {
     ctx.interpolationQuality = .high
 
     let center = CGPoint(x: canvas / 2, y: canvas / 2)
-    let plate = platePath(center: center, radius: plateRadius)
-    let plateHeight = canvas - plateInset * 2
 
-    ctx.addPath(plate)
+    ctx.addPath(platePath(center: center, radius: plateRadius))
     ctx.clip()
 
+    // Soil.
     ctx.drawLinearGradient(
-        gradient(soilTop, soilBottom),
+        gradient(plateTop, plateBottom),
         start: CGPoint(x: 0, y: canvas - plateInset),
         end: CGPoint(x: 0, y: plateInset),
         options: []
     )
 
-    // Strata: dark seams only. A lit edge above each one turns soil into planking.
-    for seam in strata {
-        let y = plateInset + plateHeight * seam.fraction
-        ctx.setFillColor(CGColor(red: 0.05, green: 0.02, blue: 0, alpha: seam.alpha))
-        ctx.fill(CGRect(x: plateInset, y: y, width: plateHeight, height: seam.thickness))
-    }
-    ctx.restoreGState()
-
-    // Everything below is in device space so the masks line up 1:1 with pixels.
-    ctx.saveGState()
-    ctx.addPath({
-        let p = CGMutablePath()
-        let t = CGAffineTransform(scaleX: dimension / canvas, y: dimension / canvas)
-        p.addPath(platePath(center: center, radius: plateRadius), transform: t)
-        return p
-    }())
-    ctx.clip()
-
-    let parts = placedSpade(scale: dimension / canvas)
-
-    // Shadow cast into the soil. Drawn inside a transparency layer so the three
-    // parts cast one shadow between them instead of shadowing each other.
-    ctx.saveGState()
-    ctx.setShadow(
-        offset: CGSize(width: 10 * dimension / canvas, height: -14 * dimension / canvas),
-        blur: 30 * dimension / canvas,
-        color: CGColor(red: 0, green: 0, blue: 0, alpha: 0.55)
-    )
-    ctx.beginTransparencyLayer(auxiliaryInfo: nil)
-    ctx.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))
-    for part in parts {
-        ctx.addPath(part)
-        ctx.fillPath()
-    }
-    ctx.endTransparencyLayer()
-    ctx.restoreGState()
-
-    // The spade. Each part is clipped and filled on its own — merging them into
-    // one path would reintroduce the winding hole.
-    let g = dimension / canvas
-    // parts is [blade, socket, shaft]; the blade gets the bright ramp.
-    let ramps = [(bladeLight, bladeWarm), (shaftLight, shaftWarm), (shaftLight, shaftWarm)]
-    for (part, ramp) in zip(parts, ramps) {
-        ctx.saveGState()
-        ctx.addPath(part)
-        ctx.clip()
-        ctx.drawLinearGradient(
-            gradient(ramp.0, ramp.1),
-            start: CGPoint(x: 300 * g, y: 200 * g),
-            end: CGPoint(x: 760 * g, y: 820 * g),
-            options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+    // Tunnel: filled discs stacked outer-to-inner, each nudged up and right.
+    for (index, band) in tunnelBands.enumerated() {
+        let step = CGFloat(index)
+        let radius = band.radius * artScale
+        let bandCenter = CGPoint(
+            x: center.x + bandDrift.width * step * artScale,
+            y: center.y + bandDrift.height * step * artScale
         )
-        ctx.restoreGState()
+        ctx.setFillColor(band.color.cgColor)
+        ctx.fillEllipse(in: CGRect(
+            x: bandCenter.x - radius,
+            y: bandCenter.y - radius,
+            width: radius * 2,
+            height: radius * 2
+        ))
     }
+
+    // Rim light along the tunnel mouth's lower left, where soil catches the sky.
+    ctx.saveGState()
+    ctx.setStrokeColor(rimLight.cgColor)
+    ctx.setLineWidth(10 * artScale)
+    ctx.setLineCap(.round)
+    ctx.addArc(
+        center: center,
+        radius: (tunnelBands[0].radius - 5) * artScale,
+        startAngle: .pi * 0.62,
+        endAngle: .pi * 1.62,
+        clockwise: false
+    )
+    ctx.strokePath()
+    ctx.restoreGState()
 
     // Overall top-down sheen, keeps the plate from reading flat.
-    let s = dimension / canvas
     ctx.drawLinearGradient(
-        gradient(RGBA(0xFFFFFF, 0.09), RGBA(0xFFFFFF, 0)),
-        start: CGPoint(x: 0, y: (canvas - plateInset) * s),
-        end: CGPoint(x: 0, y: canvas * 0.55 * s),
+        gradient(RGBA(0xFFFFFF, 0.10), RGBA(0xFFFFFF, 0)),
+        start: CGPoint(x: 0, y: canvas - plateInset),
+        end: CGPoint(x: 0, y: canvas * 0.52),
         options: []
     )
     ctx.restoreGState()
